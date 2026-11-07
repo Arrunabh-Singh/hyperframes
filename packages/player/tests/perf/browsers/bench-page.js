@@ -116,7 +116,7 @@ export async function bench(cfg) {
   const idle = await recordFrames(1000);
 
   host.play();
-  await until(() => runtime.isPlaying(), 5_000, "isPlaying").catch((e) => {
+  await until(() => runtime.isPlaying(), 5_000, "isPlaying").catch(async (e) => {
     const state = videos().map((v) => [
       v.currentSrc.split("/").pop(),
       v.readyState,
@@ -126,8 +126,23 @@ export async function bench(cfg) {
       v.buffered.length ? Math.round(v.buffered.end(v.buffered.length - 1) * 10) / 10 : 0,
       shown(v),
     ]);
+    const errors = videos().map((v) => (v.error ? v.error.code : 0));
+    const firstReady = videos().map(() => null);
+    const started = now();
+    let playedAfterMs = null;
+    while (now() - started < 60_000) {
+      videos().forEach((v, i) => {
+        if (firstReady[i] === null && v.readyState >= 2)
+          firstReady[i] = Math.round(now() - started);
+      });
+      if (runtime.isPlaying()) {
+        playedAfterMs = Math.round(now() - started);
+        break;
+      }
+      await sleep(50);
+    }
     throw new Error(
-      `${e.message}; t=${runtime.getTime()} videos [src, ready, net, paused, at, buffered, shown] ${JSON.stringify(state)}`,
+      `${e.message}; t=${runtime.getTime()} videos [src, ready, net, paused, at, buffered, shown] ${JSON.stringify(state)} errors ${JSON.stringify(errors)}; played ${playedAfterMs} ms later; ready after ${JSON.stringify(firstReady)} ms; ready now ${JSON.stringify(videos().map((v) => v.readyState))}`,
     );
   });
   countOps = true;
