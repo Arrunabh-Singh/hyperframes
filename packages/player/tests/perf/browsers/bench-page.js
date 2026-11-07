@@ -116,7 +116,20 @@ export async function bench(cfg) {
   const idle = await recordFrames(1000);
 
   host.play();
-  await until(() => runtime.isPlaying(), 5_000, "isPlaying");
+  await until(() => runtime.isPlaying(), 5_000, "isPlaying").catch((e) => {
+    const state = videos().map((v) => [
+      v.currentSrc.split("/").pop(),
+      v.readyState,
+      v.networkState,
+      v.paused,
+      Math.round(v.currentTime * 100) / 100,
+      v.buffered.length ? Math.round(v.buffered.end(v.buffered.length - 1) * 10) / 10 : 0,
+      shown(v),
+    ]);
+    throw new Error(
+      `${e.message}; t=${runtime.getTime()} videos [src, ready, net, paused, at, buffered, shown] ${JSON.stringify(state)}`,
+    );
+  });
   countOps = true;
   const decodedBefore = decoded();
   const droppedTimeline = [];
